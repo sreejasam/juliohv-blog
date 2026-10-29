@@ -1,0 +1,302 @@
+@import "tailwindcss";
+
+/* "Wide" layout = any screen held sideways (landscape, width >= 540px): laptops, desktops, tablets
+   and phones turned sideways. Everything else (phones AND tablets held upright) is the single-column
+   layout with the big portrait at the bottom.
+   Use `wide:` in class names exactly like Tailwind's `md:`. The same query is repeated by hand in the
+   CSS below, so keep the two in sync if you ever change it. */
+@custom-variant wide {
+  @media (min-width: 540px) and (orientation: landscape) {
+    @slot;
+  }
+}
+
+/* Bodoni Moda Bold — the site's name typeface (header wordmark + the big homepage name).
+   A 13 KB subset sits next to this file in app/fonts/ (SIL Open Font License, see OFL.txt there). It is
+   declared here, not in layout.jsx, so the name always picks it up and nothing is fetched from Google.
+   font-display: block — the name animates in on first load, so it must never flash in a fallback serif. */
+@font-face {
+  font-family: "JHV Bodoni";
+  src: url("./fonts/BodoniModa-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --ink: #0a0a0a;
+  /* Soft stone tone matching the mono portrait highlights — not pure white */
+  --paper: #d2cdc3;
+
+  --pad: 20px;
+  --vh-full: 100vh;
+  --name-font: "JHV Bodoni", "Bodoni 72", Didot, "Bodoni MT", "Times New Roman", serif;
+
+  /* ----- Portrait (one position on every page) -----
+     --person-w     width of the portrait image (the image is 1487 x 1058, so its height is .7115 x that)
+     --person-shift how far it is pushed past the right edge (share of its own width)
+     --person-lift  how far it is raised off the bottom edge. This is the "marked position":
+                    6.4% of the portrait width, so the head sits at the same spot on every screen size.
+                    Raise / lower the number to move the portrait up / down.
+     The last term of --person-w stops the head from ever running into the header on short screens. */
+  --person-w: min(118vw, 700px, calc(var(--vh-full) * .6));
+  --person-shift: 4%;
+  --person-lift: calc(var(--person-w) * .064);
+  --person-h: calc(var(--person-w) * .7115);
+
+  /* Shared easing for the page-change motion */
+  --move-dur: 1.3s;
+  --move-ease: cubic-bezier(.3, 0, .1, 1);
+  --out-expo: cubic-bezier(.16, 1, .3, 1);
+
+  --fx-light: 241, 238, 231;  /* rgb of the light accents (neutral stone) */
+}
+@supports (height: 100svh) { :root { --vh-full: 100svh; } }
+@media (min-width: 540px) and (orientation: landscape) {
+  :root {
+    --pad: 32px;
+    --person-w: min(52vw, 620px, calc((var(--vh-full) - 88px) / .79));
+    --person-shift: 6%;
+  }
+}
+@media (min-width: 1100px) and (orientation: landscape) {
+  :root { --person-w: min(48vw, 720px, calc((var(--vh-full) - 88px) / .79)); }
+}
+
+* { box-sizing: border-box; }
+/* Every route is a fixed one-screen layout, so page scrolling is off globally */
+html { overflow: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--ink); }
+body { margin: 0; background: var(--ink); color: var(--paper); font-family: Arial, Helvetica, sans-serif; overflow: hidden; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; }
+::selection { background: var(--paper); color: var(--ink); }
+
+.display-font { font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif-condensed, "Roboto Condensed", sans-serif; letter-spacing: -.045em; }
+.body-font { font-family: Arial, Helvetica, sans-serif; letter-spacing: -.025em; }
+/* The name wordmark (header + homepage name) */
+.name-font { font-family: var(--name-font); font-weight: 700; }
+
+/* ---------- Background ----------
+   Static black. Nothing moves. A very faint lift of grey sits behind the portrait so the dark suit
+   separates from the page; delete the first gradient line for flat #0a0a0a. */
+.site-bg {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(70% 85% at 82% 100%, #161616 0%, rgba(22, 22, 22, 0) 70%),
+    linear-gradient(180deg, #0b0b0b 0%, #070707 100%);
+}
+
+/* ---------- Portrait ----------
+   Same pose on every page: right edge, standing on the bottom of the screen, lifted by --person-lift. */
+.stage-person {
+  position: fixed; z-index: 10;
+  right: 0; bottom: var(--person-lift);
+  width: var(--person-w);
+  transform: translate3d(var(--person-shift), 0, 0);
+  pointer-events: none;
+  opacity: 0; /* revealed once the image has loaded */
+}
+.stage-person[data-ready] { opacity: 1; }
+
+.stage-person-img {
+  display: block; width: 100%; height: auto; max-width: none;
+  transform-origin: 50% 100%;
+  filter: grayscale(1) contrast(1.12) brightness(.78);
+}
+/* Intro (first load only — the element never remounts afterwards) */
+.stage-person[data-ready] .stage-person-img,
+.stage-person[data-ready] .stage-person-coat { animation: person-in 1.4s var(--out-expo) .1s backwards; }
+@keyframes person-in {
+  from { opacity: 0; transform: translateY(5%) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Jacket strip: carries the jacket from the bottom of the (lifted) portrait down past the screen edge.
+   Same box as the portrait image, so the intro animation moves both identically. */
+.stage-person-coat {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  transform-origin: 50% 100%;
+}
+.stage-person-coat__img {
+  position: absolute; left: 0; width: 100%; height: auto; max-width: none;
+  top: calc(100% - .756%); /* overlaps the portrait's last 8 source rows, so there is no seam */
+  filter: grayscale(1) contrast(1.12) brightness(.78); /* identical to .stage-person-img */
+}
+
+/* ---------- Homepage hero: name + subtitle, left of the portrait ----------
+   Phone (portrait): centred in the free space ABOVE the portrait.
+   Wide screens: vertically centred on the left, clear of the portrait.
+   Size = --hero-fs (the name). The 5.3 is the width of the longest line ("HERRERA" / "VELUTINI") in em;
+   the .72 factor make the name a little smaller than full width. A smaller factor = a smaller name.
+   The subtitle is as wide as the name and its size follows --hero-fs too. */
+.home-hero {
+  --hero-fs: min(
+    calc((100vw - 2 * var(--pad)) / 5.3 * .72),
+    calc((var(--vh-full) - var(--person-h) - var(--person-lift) - 170px) / 2.9)
+  );
+  position: fixed; z-index: 6; left: 0; top: 0;
+  width: 100%; height: var(--vh-full);
+  display: flex; align-items: center;
+  padding: 64px var(--pad) calc(var(--person-h) + var(--person-lift) + 8px);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity .5s ease .1s, visibility 0s linear 0s;
+}
+@media (min-width: 540px) and (orientation: landscape) {
+  .home-hero {
+    --hero-fs: clamp(28px, min(calc((52vw - 2 * var(--pad)) / 5.3 * .72), calc((var(--vh-full) - 240px) / 2.95)), 150px);
+    padding: 56px var(--pad) 3vh;
+  }
+}
+/* Leaving the homepage: the block fades out while the page text flows in */
+.home-hero[data-pose="away"] {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .3s ease, visibility 0s linear .3s;
+}
+/* The block's font-size is the subtitle's size. Its width is the name's width, or 27em (about two lines of
+   subtitle) if that is wider — but never more than the space it has. */
+.home-hero__inner {
+  display: block;
+  font-size: clamp(12px, calc(var(--hero-fs) * .17), 16px);
+  width: min(100%, max(calc(var(--hero-fs) * 5.2), 27em));
+}
+.home-hero__name {
+  font-size: var(--hero-fs);
+  line-height: .92;
+  letter-spacing: .005em;
+  text-transform: uppercase;
+  color: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.hh-line { display: block; white-space: nowrap; }
+.hh-rule {
+  display: block; height: 1px; width: 100%;
+  margin-top: calc(var(--hero-fs) * .16);
+  background: linear-gradient(90deg, rgba(var(--fx-light), .5), rgba(var(--fx-light), 0));
+  transform-origin: 0 50%;
+}
+/* Subtitle: wraps inside the width of the block */
+.hh-sub {
+  margin: calc(var(--hero-fs) * .16) 0 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1em;
+  line-height: 1.5;
+  letter-spacing: -.005em;
+  color: rgba(255, 255, 255, .55);
+  text-wrap: pretty;
+}
+/* The intro — deliberately quiet: a short fade + 14px rise, name first, then hairline, then subtitle.
+   It only runs while on "/", so it plays on first load AND whenever you come back home. */
+.home-hero[data-pose="home"] .hh-line {
+  animation: hh-in 1s var(--out-expo) calc(.2s + var(--l) * 110ms) backwards;
+}
+.home-hero[data-pose="home"] .hh-rule { animation: hh-rule 1.1s var(--out-expo) .65s backwards; }
+.home-hero[data-pose="home"] .hh-sub  { animation: hh-in 1s var(--out-expo) .8s backwards; }
+@keyframes hh-in {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes hh-rule {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+/* ---------- Header wordmark: hidden on the homepage ---------- */
+.header-name { transition: opacity .4s ease, visibility 0s linear 0s; }
+.header-name[data-home] { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s; }
+
+/* ---------- View button (homepage) ---------- */
+.view-btn {
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0.16em;
+}
+
+/* ---------- Content pages ---------- */
+.content-headline {
+  font-size: clamp(20px, 5.2vw, 36px);
+  line-height: .94;
+  letter-spacing: -.03em;
+}
+@media (min-width: 540px) and (orientation: landscape) {
+  .content-headline {
+    font-size: clamp(28px, 3.6vw, 56px);
+    line-height: .9;
+  }
+}
+
+/* ---------- Flowing fade-in ----------
+   ContentLayer.jsx gives every text item (label, each headline word, each body word, prev/next)
+   a running index --i. Each item fades in and settles downward a little later than the one
+   before it (--i * --flow-step), so the text reads as one continuous wave flowing from the top
+   of the panel to the bottom. The words overlap heavily (long fade, short step), which keeps it
+   a soft flow rather than a typewriter. */
+.flow-item {
+  animation: flow-in .95s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--flow-base, 0s) + var(--i, 0) * var(--flow-step, 28ms));
+}
+.flow-word { display: inline-block; }
+/* First arrival: let the text start flowing as the portrait glides into place */
+.content-enter-delay { --flow-base: .38s; }
+@keyframes flow-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -.45em, 0); /* starts slightly above and drifts down into place — use a positive value to rise instead */
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+/* Opacity + transform only: these run on the GPU. (An animated blur() filter makes the browser
+   re-rasterise the whole text panel on every frame, on top of the animated background.) */
+.content-fade-out {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 320ms cubic-bezier(0.4, 0, 1, 1),
+    transform 320ms ease;
+}
+
+/* Header and page text always share the same side margin as the homepage name */
+header, .content-panel { padding-left: var(--pad); padding-right: var(--pad); }
+
+/* Tablets held upright: roomier margins and larger text */
+@media (min-width: 600px) and (orientation: portrait) {
+  :root { --pad: 36px; }
+  .content-label { font-size: 12px; }
+  .content-body { font-size: 16px; max-width: 34rem; }
+  .content-nav a, .content-nav span { font-size: 12px; }
+}
+
+/* ---------- Small / short screens ----------
+   Keeps every page's text clear of the portrait and the header on small phones and on phones on their side. */
+@media (max-width: 539px) and (max-height: 700px) and (orientation: portrait) {
+  :root { --person-w: min(118vw, 560px, calc(var(--vh-full) * .56)); }
+  .content-panel { padding-top: 64px; }
+  .content-label { margin-bottom: 8px; }
+  .content-headline { font-size: clamp(16px, 4.9vw, 20px); }
+  .content-body { margin-top: 10px; font-size: 12px; line-height: 1.38; }
+  .content-nav { margin-top: 18px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .content-panel { padding-top: 58px; padding-bottom: 14px; }
+  .content-label { margin-bottom: 8px; }
+  .content-headline { font-size: clamp(16px, 2.9vw, 24px); line-height: .94; }
+  .content-body { margin-top: 10px; font-size: 12px; line-height: 1.38; }
+  .content-nav { margin-top: 16px; gap: 6px 12px; }
+  .content-nav a, .content-nav span { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .flow-item { animation-delay: 0s !important; }
+  .hh-line, .hh-rule, .hh-sub, .stage-person-img, .stage-person-coat { animation-delay: 0s !important; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
